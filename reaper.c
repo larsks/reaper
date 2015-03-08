@@ -4,11 +4,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-void child(int argc, char **argv) {
+int opt_quiet = 0;
+
+void run_child(int argc, char **argv) {
 	execvp(argv[0], argv);
 }
 
-void reaper() {
+void reap() {
 	pid_t pid;
 	int status;
 
@@ -16,28 +18,42 @@ void reaper() {
 		if (-1 == (pid = wait(&status)))
 			break;
 
-		fprintf(stderr, "[reaper] pid %d exited with status == %d\n",
-				pid, status);
+		if (! opt_quiet)
+			fprintf(stderr, "[reaper] pid %d exited with status == %d\n",
+					pid, status);
 	}
 }
 
-int main(int argc, char **argv) {
+int start_reaper(int argc, char **argv) {
 	int pid;
+	int res = 0;
 
 	pid = fork();
-
 	switch(pid) {
-		case 0: child(argc-1, argv+1);
+		case 0: run_child(argc, argv);
 			break;
 
 		case -1: perror("fork");
-			 return 1;
+			 res=1;
 			 break;
 
-		default: reaper();
+		default: reap();
 	}
 
-	return 0;
+	return res;
 }
 
+int main(int argc, char **argv) {
+	int c;
+	int res = 0;
+
+	while ((c = getopt(argc, argv, "q")) != EOF) {
+		switch (c) {
+			case 'q': opt_quiet=1;
+				  break;
+		}
+	}
+	res = start_reaper(argc-optind, argv+optind);
+	return res;
+}
 
